@@ -45,7 +45,12 @@ def _get_hostname():
 
 
 def _get_host_ip_address():
-    return socket.gethostbyname(socket.gethostname())
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('google.com', 80))
+    ip = s.getsockname()[0]
+    s.close()
+
+    return ip
 
 
 def create_cron_jobs():

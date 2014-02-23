@@ -17,8 +17,10 @@ def parse_config_file(path):
 
 
 def main():
+    str_bool_values = ('y', 'yes', 'true', 't', '1')
+
     def str2bool(v):
-        return v.lower() in ("yes", "true", "t", "1")
+        return v.lower() in str_bool_values
 
     parser = argparse.ArgumentParser(description='SIMO collector')
     parser.add_argument('-t', '--type', choices=ALLOWED_SEND_METHOD, type=str, required=True,
@@ -28,7 +30,7 @@ def main():
                         help='path to configuration file (default /etc/simo/collector.conf).')
 
     parser.add_argument('-o', '--output', default=False, type=bool,
-                        help='render output?')
+                        help='render output? ({})'.format(', '.join(str_bool_values)))
     parser.register('type', 'bool', str2bool)
 
     if not len(sys.argv) > 1:

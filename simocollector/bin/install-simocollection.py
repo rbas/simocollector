@@ -7,13 +7,17 @@ import urllib2
 import getpass
 import socket
 
-from simocollector.sender import BaseSender
+from simocollector.sender import BaseObjectSender, BaseMultiObjectSender
 from simocollector.collectors import system_info_collector
 from simocollector.utils import slugify
 from simocollector.sample_config import default_config
 
 
-class ServerInfoSender(BaseSender):
+CRON_JOB_FILENAME = '/etc/cron.d/simo-collector'
+CONFIG_FILE_DEFAULT_PATH = '/etc/simo/collector.conf'
+
+
+class ServerInfoSender(BaseObjectSender):
     name = 'server'
 
     def __init__(self, config, ip, name):
@@ -36,7 +40,40 @@ class ServerInfoSender(BaseSender):
         }
         return data
 
-    def _add_addtional_data(self, data):
+    def add_additional_data(self, data):
+        return data
+
+
+class DiskRegisterSender(BaseMultiObjectSender):
+    name = 'disk'
+
+    def get_data(self):
+        raw_data = system_info_collector.get_disk_usage()
+        data = []
+        for partition_name, partition_data in raw_data.iteritems():
+            disk_data = {
+                'partition_name': partition_name,
+                'path': partition_data['path'],
+                'total': partition_data['total'],
+                'volume': partition_data['volume']
+            }
+            data.append(self.add_additional_data(disk_data))
+
+        return data
+
+
+class NetDeviceRegisterSender(BaseMultiObjectSender):
+    name = 'netdevice'
+
+    def get_data(self):
+        raw_data = system_info_collector.get_network_traffic()
+        data = []
+        for device_name in raw_data.iterkeys():
+            device_data = {
+                'name': device_name,
+            }
+            data.append(self.add_additional_data(device_data))
+
         return data
 
 
@@ -58,25 +95,43 @@ def create_cron_jobs():
                                       stdout=subprocess.PIPE, close_fds=True).communicate()[0].strip()
     jobs = [
         '*/5 * * * * root {} -t loadavg'.format(publisher_path),
+        '*/5 * * * * root {} -t networktraffic'.format(publisher_path),
         '*/10 * * * * root {} -t cpu'.format(publisher_path),
         '*/15 * * * * root {} -t memory'.format(publisher_path),
+        '* */3 * * * root {} -t diskusage'.format(publisher_path),
     ]
 
-    filename = '/etc/cron.d/simo-collector'
+    if not os.path.exists(os.path.dirname(CRON_JOB_FILENAME)):
+        os.makedirs(os.path.dirname(CRON_JOB_FILENAME))
 
-    if not os.path.exists(os.path.dirname(filename)):
-        os.makedirs(os.path.dirname(filename))
-
-    with open(filename, 'w') as f:
+    with open(CRON_JOB_FILENAME, 'w') as f:
         f.write('\n'.join(jobs))
         f.close()
 
 
+def _wrap_with(code):
+    def inner(text, bold=False):
+        c = code
+        if bold:
+            c = "1;%s" % c
+        return "\033[%sm%s\033[0m" % (c, text)
+
+    return inner
+
+
+red = _wrap_with('31')
+green = _wrap_with('32')
+yellow = _wrap_with('33')
+blue = _wrap_with('34')
+magenta = _wrap_with('35')
+cyan = _wrap_with('36')
+white = _wrap_with('37')
+
+
 def main():
-    create_cron_jobs()
-    parser = argparse.ArgumentParser(description='Create sample configuration of SIMO Collector')
-    parser.add_argument('path', default='/etc/simo/collector.conf', type=str, nargs='?',
-                        help='path to configuration file (default /etc/simo/collector.conf).')
+    parser = argparse.ArgumentParser(description='SIMO Collector installer.')
+    parser.add_argument('path', default=CONFIG_FILE_DEFAULT_PATH, type=str, nargs='?',
+                        help='path to configuration file (default {}).'.format(CONFIG_FILE_DEFAULT_PATH))
 
     args = parser.parse_args()
 
@@ -96,19 +151,22 @@ def main():
         'server': server
     }
 
+    print('\n\n')
+
     try:
         sender = ServerInfoSender(config, ip_address, hostname)
         response = sender.send()
-        response_data = json.load(response)
+        response_data = json.loads(response)
     except urllib2.HTTPError, e:
         print(e.fp.read())
         exit(1)
 
-    if 'id' not in response_data:
+    if 'url' not in response_data:
+        print(red('Bad data response:'))
         print(response_data)
         exit(1)
 
-    default_config['server_id'] = response_data['id']
+    default_config['server_id'] = response_data['url']
     default_config['server'] = server
     default_config['username'] = username
     default_config['password'] = password
@@ -118,12 +176,65 @@ def main():
     if not os.path.exists(os.path.dirname(config_path)):
         os.makedirs(os.path.dirname(config_path))
 
+    try:
+        response = DiskRegisterSender(default_config).send()
+    except urllib2.HTTPError, e:
+        print(red('Problem in disk registration process'))
+        print(e.fp.read())
+        exit(1)
+
+    default_config['disk'] = {}
+    for data in response:
+        disk = json.loads(data)
+        partition_name = disk['partition_name']
+        print('{}: {}'.format(green('Disk partition has been registred'), partition_name))
+        default_config['disk'][partition_name] = disk['url']
+
+    try:
+        response = NetDeviceRegisterSender(default_config).send()
+    except urllib2.HTTPError, e:
+        print(red('Problem in disk registration process'))
+        print(e.fp.read())
+        exit(1)
+
+    default_config['networkdevices'] = {}
+    for data in response:
+        device_data = json.loads(data)
+        device_name = device_data['name']
+        print('{}: {}'.format(green('Network device has been registred'), device_name))
+        default_config['networkdevices'][device_name] = device_data['url']
+
     with open(config_path, 'w') as f:
-        f.write(json.dumps(default_config))
+        f.write(json.dumps(default_config, indent=4, sort_keys=True))
 
-    print('Creating configuration on path {}'.format(config_path))
+    print('{}: {}'.format(green('Creating configuration on path'), config_path))
 
+    print('{}: {}'.format(green('Creating cron jobs'), CRON_JOB_FILENAME))
     create_cron_jobs()
+
+    print('\n\n{}'.format(green('Successfully installed SIMO Collector')))
+
+
+def mmain():
+    conf = '/home/rbas/simocollector.conf'
+    with open(conf, 'r') as f:
+        default_config = json.load(f)
+
+    try:
+        response = NetDeviceRegisterSender(default_config).send()
+    except urllib2.HTTPError, e:
+        print(e.fp.read())
+        exit(1)
+
+    default_config['networkdevices'] = {}
+    for data in response:
+        device_data = json.loads(data)
+        default_config['networkdevices'][device_data['name']] = device_data['url']
+
+    json_config = json.dumps(default_config, indent=4, sort_keys=True)
+    with open(conf, 'w') as f:
+        f.write(json_config)
+
 
 if __name__ == '__main__':
     main()

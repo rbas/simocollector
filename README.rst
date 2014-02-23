@@ -8,7 +8,8 @@ Installation
 
 Get installation script and run as root::
 
-  curl https://raw.github.com/rbas/simocollector/master/README.rst|bash
+  $ curl -O https://raw.github.com/rbas/simocollector/master/install.sh
+  $ bash install.sh
 
 
 License: MIT

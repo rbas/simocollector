@@ -6,7 +6,6 @@ from .utils import split_and_slugify
 
 
 class SystemCollector(object):
-
     def get_uptime(self):
 
         with open('/proc/uptime', 'r') as line:
@@ -31,15 +30,16 @@ class SystemCollector(object):
         distro_info_file = glob.glob('/etc/*-release')
         debian_version = glob.glob('/etc/debian_version')
 
-        debian = False
-        distro_info = None
         try:
-            distro_info = subprocess.Popen(["cat"] + distro_info_file, stdout=subprocess.PIPE, close_fds=True,
-            ).communicate()[0]
-        except:
-            distro_info = subprocess.Popen(["cat"] + debian_version, stdout=subprocess.PIPE, close_fds=True,
-            ).communicate()[0]
+            distro_info = subprocess.Popen(["cat"] + debian_version,
+                                           stdout=subprocess.PIPE,
+                                           close_fds=True).communicate()[0]
             debian = True
+        except:
+            distro_info = subprocess.Popen(["cat"] + distro_info_file,
+                                           stdout=subprocess.PIPE,
+                                           close_fds=True).communicate()[0]
+            debian = False
 
         system_info = {}
         distro = {}
@@ -59,8 +59,9 @@ class SystemCollector(object):
 
         system_info["distro"] = distro
 
-        processor_info = subprocess.Popen(["cat", '/proc/cpuinfo'], stdout=subprocess.PIPE, close_fds=True,
-        ).communicate()[0]
+        processor_info = subprocess.Popen(["cat", '/proc/cpuinfo'],
+                                          stdout=subprocess.PIPE,
+                                          close_fds=True).communicate()[0]
 
         processor = {}
         for line in processor_info.splitlines():
@@ -143,7 +144,7 @@ class SystemCollector(object):
                 previous_line = line[0]  # We store it, then continue the for
                 continue
 
-            if previous_line != None:
+            if previous_line is not None:
                 line.insert(0, previous_line)  # then we need to insert it into the volume
                 previous_line = None  # reset the line
 
@@ -205,7 +206,6 @@ class SystemCollector(object):
 
         load_dict = dict(zip(_loadavg_columns, _loadavg_values))
 
-
         # Get cpu cores
         cpuinfo = subprocess.Popen(['cat', '/proc/cpuinfo'], stdout=subprocess.PIPE, close_fds=True)
         grep = subprocess.Popen(['grep', 'cores'], stdin=cpuinfo.stdout, stdout=subprocess.PIPE, close_fds=True)
@@ -254,7 +254,6 @@ system_info_collector = SystemCollector()
 
 
 class ProcessInfoCollector(object):
-
     def __init__(self):
         memory = system_info_collector.get_memory_info()
         self.total_memory = memory['total']

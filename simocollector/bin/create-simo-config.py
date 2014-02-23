@@ -20,7 +20,7 @@ def main():
     with open(args.path, 'w') as f:
         f.write(json.dumps(default_config))
 
-    print('Creating sample configuration on path {}'.format(args.path))
+    print('Creating sample configuration on path {0}'.format(args.path))
 
 
 if __name__ == '__main__':

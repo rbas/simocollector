@@ -30,7 +30,7 @@ def main():
                         help='path to configuration file (default /etc/simo/collector.conf).')
 
     parser.add_argument('-o', '--output', default=False, type=bool,
-                        help='render output? ({})'.format(', '.join(str_bool_values)))
+                        help='render output? ({0})'.format(', '.join(str_bool_values)))
     parser.register('type', 'bool', str2bool)
 
     if not len(sys.argv) > 1:

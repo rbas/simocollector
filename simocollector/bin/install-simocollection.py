@@ -94,11 +94,11 @@ def create_cron_jobs():
     publisher_path = subprocess.Popen(['which', 'simo-collection-publish.py'],
                                       stdout=subprocess.PIPE, close_fds=True).communicate()[0].strip()
     jobs = [
-        '*/5 * * * * root {} -t loadavg'.format(publisher_path),
-        '*/5 * * * * root {} -t networktraffic'.format(publisher_path),
-        '*/10 * * * * root {} -t cpu'.format(publisher_path),
-        '*/15 * * * * root {} -t memory'.format(publisher_path),
-        '* */3 * * * root {} -t diskusage'.format(publisher_path),
+        '*/5 * * * * root {0} -t loadavg'.format(publisher_path),
+        '*/5 * * * * root {0} -t networktraffic'.format(publisher_path),
+        '*/10 * * * * root {0} -t cpu'.format(publisher_path),
+        '*/15 * * * * root {0} -t memory'.format(publisher_path),
+        '* */3 * * * root {0} -t diskusage'.format(publisher_path),
     ]
 
     if not os.path.exists(os.path.dirname(CRON_JOB_FILENAME)):
@@ -131,7 +131,7 @@ white = _wrap_with('37')
 def main():
     parser = argparse.ArgumentParser(description='SIMO Collector installer.')
     parser.add_argument('path', default=CONFIG_FILE_DEFAULT_PATH, type=str, nargs='?',
-                        help='path to configuration file (default {}).'.format(CONFIG_FILE_DEFAULT_PATH))
+                        help='path to configuration file (default {0}).'.format(CONFIG_FILE_DEFAULT_PATH))
 
     args = parser.parse_args()
 
@@ -139,11 +139,11 @@ def main():
     host_ip_address = _get_host_ip_address()
     current_hostname = _get_hostname()
 
-    username = raw_input('Username [{}]: '.format(actual_user)) or actual_user
+    username = raw_input('Username [{0}]: '.format(actual_user)) or actual_user
     password = getpass.getpass('Password: ')
     server = raw_input('SIMO url: ')
-    ip_address = raw_input('Write server ip address [{}]: '.format(host_ip_address)) or host_ip_address
-    hostname = raw_input('Server name [{}]: '.format(current_hostname)) or current_hostname
+    ip_address = raw_input('Write server ip address [{0}]: '.format(host_ip_address)) or host_ip_address
+    hostname = raw_input('Server name [{0}]: '.format(current_hostname)) or current_hostname
 
     config = {
         'username': username,
@@ -187,7 +187,7 @@ def main():
     for data in response:
         disk = json.loads(data)
         partition_name = disk['partition_name']
-        print('{}: {}'.format(green('Disk partition has been registred'), partition_name))
+        print('{0}: {1}'.format(green('Disk partition has been registred'), partition_name))
         default_config['disk'][partition_name] = disk['url']
 
     try:
@@ -201,18 +201,18 @@ def main():
     for data in response:
         device_data = json.loads(data)
         device_name = device_data['name']
-        print('{}: {}'.format(green('Network device has been registred'), device_name))
+        print('{0}: {1}'.format(green('Network device has been registred'), device_name))
         default_config['networkdevices'][device_name] = device_data['url']
 
     with open(config_path, 'w') as f:
         f.write(json.dumps(default_config, indent=4, sort_keys=True))
 
-    print('{}: {}'.format(green('Creating configuration on path'), config_path))
+    print('{0}: {1}'.format(green('Creating configuration on path'), config_path))
 
-    print('{}: {}'.format(green('Creating cron jobs'), CRON_JOB_FILENAME))
+    print('{0}: {1}'.format(green('Creating cron jobs'), CRON_JOB_FILENAME))
     create_cron_jobs()
 
-    print('\n\n{}'.format(green('Successfully installed SIMO Collector')))
+    print('\n\n{0}'.format(green('Successfully installed SIMO Collector')))
 
 
 def mmain():

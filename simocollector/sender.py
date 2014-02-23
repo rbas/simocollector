@@ -53,9 +53,9 @@ class BaseSender(SenderMixin):
 
     def get_url(self):
         try:
-            return '{}{}'.format(self.config['server'].rstrip('/'), URL_LIST[self.name])
+            return '{0}{1}'.format(self.config['server'].rstrip('/'), URL_LIST[self.name])
         except KeyError:
-            raise Exception('Collection {} is not allowed.'.format(self.name))
+            raise Exception('Collection {0} is not allowed.'.format(self.name))
 
     def get_data(self):
         return {}
@@ -75,7 +75,7 @@ class BaseSender(SenderMixin):
     def validate_config(self, config):
         for reqire_argument in self.get_required_config_params():
             if not reqire_argument in config:
-                raise Exception('Missing parameter "{}" in configuration file.'.format(reqire_argument))
+                raise Exception('Missing parameter "{0}" in configuration file.'.format(reqire_argument))
 
         return True
 
@@ -145,7 +145,7 @@ class DiskUsageSender(BaseMultiObjectSender):
         try:
             return self.config['disk'][partition_name]
         except KeyError:
-            raise Exception('Partition {} is not registred.'.format(partition_name))
+            raise Exception('Partition {0} is not registred.'.format(partition_name))
 
     def get_required_config_params(self):
         params = super(DiskUsageSender, self).get_required_config_params()
@@ -173,7 +173,7 @@ class NetworkTrafficSender(BaseMultiObjectSender):
         try:
             return self.config['networkdevices'][device_name]
         except KeyError:
-            raise Exception('Network device {} is not registred.'.format(device_name))
+            raise Exception('Network device {0} is not registred.'.format(device_name))
 
     def get_required_config_params(self):
         params = super(NetworkTrafficSender, self).get_required_config_params()

@@ -50,7 +50,7 @@ def main():
     try:
         response = build_sender(strip(args.type), config).send()
         if args.output:
-            print(response.read())
+            print(response)
     except HTTPError, e:
         if args.output:
             if hasattr(e, 'fp'):

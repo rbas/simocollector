@@ -1,6 +1,6 @@
 #!/bin/bash
 # Author: Martin Voldrich <rbas.cz@gmail.com>
-VERSION='1.1.0'
+VERSION='1.1.1'
 
 command_exists() {
     type "$1" &> /dev/null ;

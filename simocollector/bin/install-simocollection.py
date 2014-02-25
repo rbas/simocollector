@@ -94,7 +94,7 @@ def create_cron_jobs():
     publisher_path = subprocess.Popen(['which', 'simo-collection-publish.py'],
                                       stdout=subprocess.PIPE, close_fds=True).communicate()[0].strip()
     jobs = [
-        '*/2* * * * root {0} -t loadavg'.format(publisher_path),
+        '*/2 * * * * root {0} -t loadavg'.format(publisher_path),
         '*/6 * * * * root {0} -t networktraffic'.format(publisher_path),
         '*/5 * * * * root {0} -t cpu'.format(publisher_path),
         '*/9 * * * * root {0} -t memory'.format(publisher_path),
@@ -105,7 +105,7 @@ def create_cron_jobs():
         os.makedirs(os.path.dirname(CRON_JOB_FILENAME))
 
     with open(CRON_JOB_FILENAME, 'w') as f:
-        f.write('{0}\n'.format('\n'.join(jobs)))
+        f.write('{0}\n\n'.format('\n'.join(jobs)))
         f.close()
 
 

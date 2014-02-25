@@ -111,9 +111,6 @@ class LoadaAvgSender(BaseObjectSender):
 
     def get_data(self):
         data = system_info_collector.get_load_average()
-        data['processed_entities'], data['entities'] = data['scheduled_processes'].split('/')
-
-        del(data['scheduled_processes'])
 
         return data
 

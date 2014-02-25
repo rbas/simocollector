@@ -1,8 +1,38 @@
+import os
+import sys
 import subprocess
 import re
 import glob
 
 from .utils import split_and_slugify
+
+try:
+    from multiprocessing import cpu_count
+except ImportError:
+    def cpu_count():
+        """ Returns the number of CPUs in the system
+        """
+        num = 1
+        if sys.platform == 'win32':
+            # fetch the cpu count for windows systems
+            try:
+                num = int(os.environ['NUMBER_OF_PROCESSORS'])
+            except (ValueError, KeyError):
+                pass
+        elif sys.platform == 'darwin':
+            # fetch teh cpu count for MacOS X systems
+            try:
+                num = int(os.popen('sysctl -n hw.ncpu').read())
+            except ValueError:
+                pass
+        else:
+            # an finally fetch the cpu count for Unix-like systems
+            try:
+                num = os.sysconf('SC_NPROCESSORS_ONLN')
+            except (ValueError, OSError, AttributeError):
+                pass
+
+        return num
 
 
 class SystemCollector(object):
@@ -196,28 +226,11 @@ class SystemCollector(object):
         return data
 
     def get_load_average(self):
-        _loadavg_columns = ['minute', 'five_minutes', 'fifteen_minutes', 'scheduled_processes']
+        _loadavg_columns = ('minute', 'five_minutes', 'fifteen_minutes')
+        load_dict = dict(zip(_loadavg_columns, os.getloadavg()))
 
-        lines = open('/proc/loadavg', 'r').readlines()
-
-        load_data = lines[0].split()
-
-        _loadavg_values = load_data[:4]
-
-        load_dict = dict(zip(_loadavg_columns, _loadavg_values))
-
-        # Get cpu cores
-        cpuinfo = subprocess.Popen(['cat', '/proc/cpuinfo'], stdout=subprocess.PIPE, close_fds=True)
-        grep = subprocess.Popen(['grep', 'cores'], stdin=cpuinfo.stdout, stdout=subprocess.PIPE, close_fds=True)
-        sort = subprocess.Popen(['sort', '-u'], stdin=grep.stdout, stdout=subprocess.PIPE, close_fds=True) \
-            .communicate()[0]
-
-        cores = re.findall(r'\d+', sort)
-
-        try:
-            load_dict['cores'] = int(cores[0])
-        except:
-            load_dict['cores'] = 1  # Don't break if can't detect the cores
+        cores = cpu_count()
+        load_dict['cores'] = cores
 
         return load_dict
 

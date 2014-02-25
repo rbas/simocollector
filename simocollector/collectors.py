@@ -3,6 +3,7 @@ import sys
 import subprocess
 import re
 import glob
+import psutil
 
 from .utils import split_and_slugify
 
@@ -106,53 +107,28 @@ class SystemCollector(object):
         return system_info
 
     def get_memory_info(self):
+        _swap_columns = ('swap_total', 'swap_used', 'swap_free', 'swap_percent_used')
+        swap_values = dict(zip(_swap_columns, psutil.swap_memory()))
+        memory_usage = psutil.virtual_memory()
 
-        memory_dict = {}
-        _save_to_dict = ['MemFree', 'MemTotal', 'SwapFree', 'SwapTotal', 'Buffers', 'Cached']
+        raw_data = {
+            "total": memory_usage.total,
+            "free": memory_usage.free,
+            "used": memory_usage.used,
+            "percent_used": int(memory_usage.percent)
+        }
 
-        regex = re.compile(r'([0-9]+)')
+        raw_data.update(swap_values)
 
-        with open('/proc/meminfo', 'r') as lines:
+        data = {}
+        for name, value in raw_data.iteritems():
+            value = int(value)
+            if name.find('percent') is -1:
+                value /= 1024 * 1024  # Convert to MB
 
-            for line in lines:
-                values = line.split(':')
+            data[name] = value
 
-                match = re.search(regex, values[1])
-                if values[0] in _save_to_dict:
-                    memory_dict[values[0].lower()] = int(match.group(0)) / 1024  # Convert to MB
-
-            # Unix releases buffers and cached when needed
-            buffers = memory_dict.get('buffers', 0)
-            cached = memory_dict.get('cached', 0)
-
-            memory_free = memory_dict['memfree'] + buffers + cached
-            memory_used = memory_dict['memtotal'] - memory_free
-            memory_percent_used = (float(memory_used) / float(memory_dict['memtotal']) * 100)
-
-            swap_total = memory_dict.get('swaptotal', 0)
-            swap_free = memory_dict.get('swapfree', 0)
-            swap_used = swap_total - swap_free
-            swap_percent_used = 0
-
-            if swap_total > 0:
-                swap_percent_used = (float(swap_used) / float(swap_total) * 100)
-
-            extracted_data = {
-                "total": memory_dict["memtotal"],
-                "free": memory_free,
-                "used": memory_used,
-                "percent_used": memory_percent_used,
-                "swap_total": swap_total,
-                "swap_free": swap_free,
-                "swap_used": swap_used,
-                "swap_percent_used": swap_percent_used
-            }
-
-            # Convert everything to int to avoid float localization problems
-            for k, v in extracted_data.items():
-                extracted_data[k] = int(v)
-
-            return extracted_data
+        return data
 
     def get_disk_usage(self):
         df = subprocess.Popen(['df'], stdout=subprocess.PIPE, close_fds=True).communicate()[0]

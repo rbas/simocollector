@@ -157,12 +157,13 @@ class NetworkTrafficSender(BaseMultiObjectSender):
         raw_data = system_info_collector.get_network_traffic()
         result = []
         for device_name, device_data in raw_data.iteritems():
-            row = {
-                'received': device_data['kb_received'],
-                'transmitted': device_data['kb_transmitted'],
-                'device': self.get_device_id(device_name)
-            }
-            result.append(self.add_additional_data(row))
+            if device_name in self.config['networkdevices']:
+                row = {
+                    'received': device_data['kb_received'],
+                    'transmitted': device_data['kb_transmitted'],
+                    'device': self.config['networkdevices'][device_name]
+                }
+                result.append(self.add_additional_data(row))
 
         return result
 

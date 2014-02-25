@@ -1,39 +1,8 @@
 import os
-import sys
 import subprocess
 import re
-import glob
 import psutil
-
-from .utils import split_and_slugify
-
-try:
-    from multiprocessing import cpu_count
-except ImportError:
-    def cpu_count():
-        """ Returns the number of CPUs in the system
-        """
-        num = 1
-        if sys.platform == 'win32':
-            # fetch the cpu count for windows systems
-            try:
-                num = int(os.environ['NUMBER_OF_PROCESSORS'])
-            except (ValueError, KeyError):
-                pass
-        elif sys.platform == 'darwin':
-            # fetch teh cpu count for MacOS X systems
-            try:
-                num = int(os.popen('sysctl -n hw.ncpu').read())
-            except ValueError:
-                pass
-        else:
-            # an finally fetch the cpu count for Unix-like systems
-            try:
-                num = os.sysconf('SC_NPROCESSORS_ONLN')
-            except (ValueError, OSError, AttributeError):
-                pass
-
-        return num
+import platform
 
 
 class SystemCollector(object):
@@ -58,49 +27,39 @@ class SystemCollector(object):
         return uptime
 
     def get_system_info(self):
-        distro_info_file = glob.glob('/etc/*-release')
-        debian_version = glob.glob('/etc/debian_version')
-
-        try:
-            distro_info = subprocess.Popen(["cat"] + debian_version,
-                                           stdout=subprocess.PIPE,
-                                           close_fds=True).communicate()[0]
-            debian = True
-        except:
-            distro_info = subprocess.Popen(["cat"] + distro_info_file,
-                                           stdout=subprocess.PIPE,
-                                           close_fds=True).communicate()[0]
-            debian = False
-
-        system_info = {}
         distro = {}
-        if debian is False:
-            for line in distro_info.splitlines():
-                if re.search('distrib_id', line, re.IGNORECASE):
-                    info = line.split("=")
-                    if len(info) == 2:
-                        distro['distribution'] = info[1]
-                if re.search('distrib_release', line, re.IGNORECASE):
-                    info = line.split("=")
-                    if len(info) == 2:
-                        distro['release'] = info[1]
+        system_info = {}
+        dist = platform.dist()
+        if filter(None, dist):
+            distro['distribution'] = dist[0]
+            distro['release'] = '{0}/{1}'.format(dist[1], dist[2])
         else:
-            distro['distribution'] = 'Debian'
-            distro['release'] = distro_info
+            distro['distribution'] = platform.system()
+            distro['release'] = platform.release()
 
         system_info["distro"] = distro
 
-        processor_info = subprocess.Popen(["cat", '/proc/cpuinfo'],
-                                          stdout=subprocess.PIPE,
-                                          close_fds=True).communicate()[0]
+        processor = {
+            'cpu-cores': psutil.NUM_CPUS
+        }
 
-        processor = {}
-        for line in processor_info.splitlines():
-            parsed_line = split_and_slugify(line)
-            if parsed_line and isinstance(parsed_line, dict):
-                key = parsed_line.keys()[0]
-                value = parsed_line.values()[0]
-                processor[key] = value
+        try:
+            if os.path.exists('/proc/cpuinfo'):
+                model_name_raw = subprocess.Popen(['grep', '"model name"', '-m', '1', '/proc/cpuinfo'],
+                                                  stdout=subprocess.PIPE,
+                                                  close_fds=True).communicate()[0]
+                cpu_model_name = model_name_raw.replace('model name', '').strip().lstrip(':').strip()
+            elif os.path.exists('/var/run/dmesg.boot'):
+                model_name_raw = subprocess.Popen(['grep', 'CPU:', '/var/run/dmesg.boot'],
+                                                  stdout=subprocess.PIPE,
+                                                  close_fds=True).communicate()[0]
+                cpu_model_name = model_name_raw.replace('CPU:', '').strip()
+            else:
+                cpu_model_name = 'unknown'
+        except Exception:
+            cpu_model_name = 'unknown'
+
+        processor['model-name'] = cpu_model_name
 
         system_info["processor"] = processor
 
@@ -131,73 +90,30 @@ class SystemCollector(object):
         return data
 
     def get_disk_usage(self):
-        df = subprocess.Popen(['df'], stdout=subprocess.PIPE, close_fds=True).communicate()[0]
-
-        volumes = df.split('\n')
-        volumes.pop(0)  # remove the header
-        volumes.pop()
-
+        _columns = ('total', 'used', 'free')
         data = {}
 
-        _columns = ('volume', 'total', 'used', 'free', 'percent', 'path')
+        for part in psutil.disk_partitions(all=False):
+            if os.name == 'nt':
+                if 'cdrom' in part.opts or part.fstype == '':
+                    # skip cd-rom drives with no disk in it; they may raise
+                    # ENOENT, pop-up a Windows GUI error for a non-ready
+                    # partition or just hang.
+                    continue
+            usage = psutil.disk_usage(part.mountpoint)
+            row = dict(zip(_columns, map(lambda x: x / (1024 * 1024), usage)))
+            row['volume'] = part.device
+            row['path'] = part.mountpoint
+            row['percent'] = int(usage.percent)
 
-        previous_line = None
-
-        for volume in volumes:
-            line = volume.split(None, 6)
-
-            if len(line) == 1:  # If the length is 1 then this just has the mount name
-                previous_line = line[0]  # We store it, then continue the for
-                continue
-
-            if previous_line is not None:
-                line.insert(0, previous_line)  # then we need to insert it into the volume
-                previous_line = None  # reset the line
-
-            if line[0].startswith('/'):
-                _volume = dict(zip(_columns, line))
-
-                _volume['percent'] = _volume['percent'].replace("%",
-                                                                '')  # Delete the % sign for easier calculation later
-
-                # strip /dev/
-                _name = _volume['volume'].replace('/dev/', '')
-
-                # Encrypted directories -> /home/something/.Private
-                if '.' in _name:
-                    _name = _name.replace('.', '')
-
-                data[_name] = _volume
+            data[part.device.replace('/dev/', '')] = row
 
         return data
 
     def get_network_traffic(self):
-
-        stats = subprocess.Popen(['sar', '-n', 'DEV', '1', '1'],
-                                 stdout=subprocess.PIPE, close_fds=True) \
-            .communicate()[0]
-        network_data = stats.splitlines()
         data = {}
-        for line in network_data:
-            if line.startswith('Average'):
-                elements = line.split()
-                interface = elements[1]
-
-                # interface name with .
-                if '.' in interface:
-                    interface = interface.replace('.', '-')
-
-                if interface not in ['IFACE', 'lo']:
-                    # rxkB/s - Total number of kilobytes received per second
-                    # txkB/s - Total number of kilobytes transmitted per second
-
-                    kb_received = elements[4].replace(',', '.')
-                    kb_received = format(float(kb_received), ".2f")
-
-                    kb_transmitted = elements[5].replace(',', '.')
-                    kb_transmitted = format(float(kb_transmitted), ".2f")
-
-                    data[interface] = {"kb_received": kb_received, "kb_transmitted": kb_transmitted}
+        for device, stat in psutil.net_io_counters(pernic=True).iteritems():
+            data[device] = {'kb_received': stat.bytes_recv / 1024, 'kb_transmitted': stat.bytes_sent / 1024}
 
         return data
 
@@ -205,39 +121,17 @@ class SystemCollector(object):
         _loadavg_columns = ('minute', 'five_minutes', 'fifteen_minutes')
         load_dict = dict(zip(_loadavg_columns, os.getloadavg()))
 
-        cores = cpu_count()
+        cores = psutil.NUM_CPUS
         load_dict['cores'] = cores
 
         return load_dict
 
     def get_cpu_utilization(self):
-
-        # Get the cpu stats
-        mpstat = subprocess.Popen(['sar', '1', '1'],
-                                  stdout=subprocess.PIPE, close_fds=True).communicate()[0]
-
-        cpu_columns = []
-        cpu_values = []
-        header_regex = re.compile(r'.*?([%][a-zA-Z0-9]+)[\s+]?')  # the header values are %idle, %wait
-        # International float numbers - could be 0.00 or 0,00
-        value_regex = re.compile(r'\d+[\.,]\d+')
-        stats = mpstat.split('\n')
-
-        for value in stats:
-            values = re.findall(value_regex, value)
-            if len(values) > 4:
-                values = map(lambda x: x.replace(',', '.'), values)  # Replace , with . if necessary
-                cpu_values = map(lambda x: format(float(x), ".2f"),
-                                 values)  # Convert the values to float with 2 points precision
-
-            header = re.findall(header_regex, value)
-            if len(header) > 4:
-                cpu_columns = map(lambda x: x.replace('%', ''), header)
-
-        cpu_dict = dict(zip(cpu_columns, cpu_values))
-
-        return cpu_dict
-
+        _columns = ('user', 'nice', 'system', 'idle', 'iowait')
+        cpu_time_percent = psutil.cpu_times_percent()
+        data = dict(zip(_columns, cpu_time_percent))
+        data['steal'] = cpu_time_percent.steal
+        return data
 
 system_info_collector = SystemCollector()
 

@@ -9,14 +9,14 @@ command_exists() {
 install_simo_collector() {
 
     # Install depencies
-    if dpkg-query -s curl sysstat >> /dev/null ; then
+    if dpkg-query -s curl >> /dev/null ; then
         echo "***Requirements already installed"
     else
         echo "** Installing requirements"
-        apt-get -y install sysstat curl
+        apt-get -y install curl
     fi
 
-    if dpkg-query -W sysstat curl; then
+    if dpkg-query -W curl; then
         echo "** Requirements successfuly installed!"
     fi
 
@@ -27,14 +27,15 @@ install_simo_collector() {
         rm -f ez_setup.py
     fi
 
+    # Install argparse and psutil if necessary
+    easy_install argparse
+    easy_install psutil
 
 
     echo "Download SIMO collector..."
     curl -O https://pypi.python.org/packages/source/s/simocollector/simocollector-${VERSION}.tar.gz
 
     tar xfz simocollector-${VERSION}.tar.gz
-
-    easy_install argparse
 
     cd simocollector-${VERSION}
     /usr/bin/env python setup.py install

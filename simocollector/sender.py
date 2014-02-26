@@ -130,20 +130,15 @@ class DiskUsageSender(BaseMultiObjectSender):
         data = system_info_collector.get_disk_usage()
         result = []
         for partition_name, partition_data in data.iteritems():
-            row = {
-                'used': partition_data['used'],
-                'free': partition_data['free'],
-                'percent': partition_data['percent'],
-                'disk': self.get_disk_id(partition_name)
-            }
-            result.append(self.add_additional_data(row))
+            if partition_name in self.config['disk']:
+                row = {
+                    'used': partition_data['used'],
+                    'free': partition_data['free'],
+                    'percent': partition_data['percent'],
+                    'disk': self.config['disk'][partition_name]
+                }
+                result.append(self.add_additional_data(row))
         return result
-
-    def get_disk_id(self, partition_name):
-        try:
-            return self.config['disk'][partition_name]
-        except KeyError:
-            raise Exception('Partition {0} is not registred.'.format(partition_name))
 
     def get_required_config_params(self):
         params = super(DiskUsageSender, self).get_required_config_params()

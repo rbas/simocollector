@@ -101,7 +101,7 @@ class SystemCollector(object):
                     # partition or just hang.
                     continue
             usage = psutil.disk_usage(part.mountpoint)
-            row = dict(zip(_columns, map(lambda x: x / (1024 * 1024), usage)))
+            row = dict(zip(_columns, map(lambda x: x / (1024 * 1024), usage)))  # Convert to MB
             row['volume'] = part.device
             row['path'] = part.mountpoint
             row['percent'] = int(usage.percent)

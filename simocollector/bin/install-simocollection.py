@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python
 import os
 import argparse
 import json
@@ -99,6 +99,7 @@ def create_cron_jobs():
         '*/5 * * * * root {0} -t cpu'.format(publisher_path),
         '*/9 * * * * root {0} -t memory'.format(publisher_path),
         '1 */3 * * * root {0} -t diskusage'.format(publisher_path),
+        '1 3 * * * root {0} -t diskio'.format(publisher_path),
     ]
 
     if not os.path.exists(os.path.dirname(CRON_JOB_FILENAME)):

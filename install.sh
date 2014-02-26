@@ -9,14 +9,14 @@ command_exists() {
 install_simo_collector() {
 
     # Install depencies
-    if dpkg-query -s curl >> /dev/null ; then
+    if dpkg-query -s curl gcc python-dev >> /dev/null ; then
         echo "***Requirements already installed"
     else
         echo "** Installing requirements"
-        apt-get -y install curl
+        apt-get -y install curl gcc python-dev
     fi
 
-    if dpkg-query -W curl; then
+    if dpkg-query -W curl gcc python-dev; then
         echo "** Requirements successfuly installed!"
     fi
 

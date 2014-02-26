@@ -110,6 +110,20 @@ class SystemCollector(object):
 
         return data
 
+    def get_disk_io(self):
+        raw_data = psutil.disk_io_counters(True)
+        data = {}
+        for disk_name, disk_data in raw_data.iteritems():
+            row_data = dict(disk_data._asdict())
+            row_data['read_kb'] = row_data['read_bytes'] / 1024  # Convert to KB
+            row_data['write_kb'] = row_data['write_bytes'] / 1024  # Convert to KB
+            del(row_data['read_bytes'])
+            del(row_data['write_bytes'])
+
+            data[disk_name] = row_data
+
+        return data
+
     def get_network_traffic(self):
         data = {}
         for device, stat in psutil.net_io_counters(pernic=True).iteritems():

@@ -9,7 +9,7 @@ import base64
 from simocollector.collectors import system_info_collector
 
 
-ALLOWED_SEND_METHOD = ('loadavg', 'cpu', 'memory', 'diskusage', 'networktraffic')
+ALLOWED_SEND_METHOD = ('loadavg', 'cpu', 'memory', 'diskusage', 'diskio', 'networktraffic')
 
 URL_LIST = {
     'memory': '/api/memory/',
@@ -18,6 +18,7 @@ URL_LIST = {
     'server': '/api/server/',
     'disk': '/api/disk/',
     'diskusage': '/api/disk-usage/',
+    'diskio': '/api/disk-io/',
     'netdevice': '/api/network-device/',
     'networktraffic': '/api/network-traffic/',
 }
@@ -150,6 +151,26 @@ class DiskUsageSender(BaseMultiObjectSender):
         return params
 
 
+class DiskIOSender(BaseMultiObjectSender):
+    name = 'diskio'
+
+    def get_data(self):
+        data = system_info_collector.get_disk_io()
+        result = []
+        for partition_name, partition_data in data.iteritems():
+            if partition_name in self.config['disk']:
+                row = partition_data
+                row['disk'] = self.config['disk'][partition_name]
+                result.append(self.add_additional_data(row))
+
+        return result
+
+    def get_required_config_params(self):
+        params = super(DiskIOSender, self).get_required_config_params()
+        params += ('disk', )
+        return params
+
+
 class NetworkTrafficSender(BaseMultiObjectSender):
     name = 'networktraffic'
 
@@ -185,5 +206,6 @@ def build_sender(name, config):
         'loadavg': LoadaAvgSender(config),
         'memory': MemorySender(config),
         'diskusage': DiskUsageSender(config),
+        'diskio': DiskIOSender(config),
         'networktraffic': NetworkTrafficSender(config)
     }[name]

@@ -141,10 +141,9 @@ class SystemCollector(object):
         return load_dict
 
     def get_cpu_utilization(self):
-        _columns = ('user', 'nice', 'system', 'idle', 'iowait')
-        cpu_time_percent = psutil.cpu_times_percent()
+        _columns = ('user', 'nice', 'system', 'idle', 'iowait', 'irq', 'softirq', 'steal', 'quest', 'quest_nice')
+        cpu_time_percent = psutil.cpu_times_percent(interval=3)
         data = dict(zip(_columns, cpu_time_percent))
-        data['steal'] = cpu_time_percent.steal
         return data
 
 system_info_collector = SystemCollector()

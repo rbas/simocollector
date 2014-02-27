@@ -96,7 +96,7 @@ def create_cron_jobs():
     jobs = [
         '*/2 * * * * root {0} -t loadavg'.format(publisher_path),
         '*/6 * * * * root {0} -t networktraffic'.format(publisher_path),
-        '*/5 * * * * root {0} -t cpu'.format(publisher_path),
+        '*/5 * * * * root sleep 20 && {0} -t cpu'.format(publisher_path),
         '*/9 * * * * root {0} -t memory'.format(publisher_path),
         '1 */3 * * * root {0} -t diskusage'.format(publisher_path),
         '1 3 * * * root {0} -t diskio'.format(publisher_path),

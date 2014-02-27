@@ -27,11 +27,15 @@ URL_LIST = {
 class SenderMixin(object):
 
     def send_data(self, url, data):
-        request = urllib2.Request(url, None, headers={'Content-Type': 'application/json'})
-
         base64string = base64.encodestring(
-            '%s:%s' % (self.get_username(), self.get_password())).replace('\n', '')
-        request.add_header("Authorization", "Basic %s" % base64string)
+            '{0}:{1}'.format(self.get_username(), self.get_password())).replace('\n', '')
+
+        headers = {
+            'Content-Type': 'application/json',
+            'User-Agent': 'SIMO Collector {0}'.format(__import__('simocollector').__versionstr__),
+            'Authorization': "Basic {0}".format(base64string)
+        }
+        request = urllib2.Request(url, None, headers=headers)
 
         response = urllib2.urlopen(request, data=data)
 

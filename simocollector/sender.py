@@ -131,7 +131,8 @@ class DiskUsageSender(BaseMultiObjectSender):
     name = 'diskusage'
 
     def get_data(self):
-        data = system_info_collector.get_disk_usage()
+        path_list = self.config['path_list']
+        data = system_info_collector.get_disk_usage(path_list)
         result = []
         for partition_name, partition_data in data.iteritems():
             if partition_name in self.config['disk']:
@@ -146,7 +147,7 @@ class DiskUsageSender(BaseMultiObjectSender):
 
     def get_required_config_params(self):
         params = super(DiskUsageSender, self).get_required_config_params()
-        params += ('disk', )
+        params += ('disk', 'path_list')
         return params
 
 

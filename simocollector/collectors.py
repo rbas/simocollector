@@ -89,24 +89,30 @@ class SystemCollector(object):
 
         return data
 
-    def get_disk_usage(self):
+    def get_disk_usage(self, path_list):
         _columns = ('total', 'used', 'free')
         data = {}
 
-        for part in psutil.disk_partitions(all=False):
-            if os.name == 'nt':
-                if 'cdrom' in part.opts or part.fstype == '':
-                    # skip cd-rom drives with no disk in it; they may raise
-                    # ENOENT, pop-up a Windows GUI error for a non-ready
-                    # partition or just hang.
-                    continue
-            usage = psutil.disk_usage(part.mountpoint)
-            row = dict(zip(_columns, map(lambda x: x / (1024 * 1024), usage)))  # Convert to MB
-            row['volume'] = part.device
-            row['path'] = part.mountpoint
-            row['percent'] = int(usage.percent)
+        partition_list = psutil.disk_partitions(all=False)
 
-            data[part.device.replace('/dev/', '')] = row
+        for path in path_list:
+            try:
+                part = filter(lambda x: x.mountpoint == path, partition_list)[0]
+                if os.name == 'nt':
+                    if 'cdrom' in part.opts or part.fstype == '':
+                        # skip cd-rom drives with no disk in it; they may raise
+                        # ENOENT, pop-up a Windows GUI error for a non-ready
+                        # partition or just hang.
+                        continue
+                usage = psutil.disk_usage(part.mountpoint)
+                row = dict(zip(_columns, map(lambda x: x / (1024 * 1024), usage)))  # Convert to MB
+                row['volume'] = part.device
+                row['path'] = part.mountpoint
+                row['percent'] = int(usage.percent)
+
+                data[part.device.replace('/dev/', '')] = row
+            except IndexError:
+                pass
 
         return data
 

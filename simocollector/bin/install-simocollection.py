@@ -6,11 +6,11 @@ import subprocess
 import urllib2
 import getpass
 import socket
+import psutil
 
 from simocollector.sender import BaseObjectSender, BaseMultiObjectSender
 from simocollector.collectors import system_info_collector
 from simocollector.utils import slugify
-from simocollector.sample_config import default_config
 
 
 CRON_JOB_FILENAME = '/etc/cron.d/simo-collector'
@@ -33,7 +33,7 @@ class ServerInfoSender(BaseObjectSender):
             'distribution': raw_data['distro'].get('distribution', 'unknown'),
             'release': raw_data['distro'].get('release', 'unknown'),
             'cpu_model_name': raw_data['processor'].get('model-name', 'unknown'),
-            'cpu_number_of_cores': raw_data['processor'].get('cpu-cores', 0),
+            'cpu_number_of_cores': raw_data['processor'].get('cpu-cores', 0) or 0,
             'name': self.server_name,
             'slug': self.server_name,
             'ip_address': self.ip,
@@ -44,22 +44,23 @@ class ServerInfoSender(BaseObjectSender):
         return data
 
 
-class DiskRegisterSender(BaseMultiObjectSender):
+class DiskRegisterSender(BaseObjectSender):
     name = 'disk'
+    data = {}
 
     def get_data(self):
-        raw_data = system_info_collector.get_disk_usage()
-        data = []
-        for partition_name, partition_data in raw_data.iteritems():
-            disk_data = {
-                'partition_name': partition_name,
-                'path': partition_data['path'],
-                'total': partition_data['total'],
-                'volume': partition_data['volume']
-            }
-            data.append(self.add_additional_data(disk_data))
+        return self.data
 
-        return data
+    def set_partition(self, partiton):
+        print(partiton)
+        usage = psutil.disk_usage(partiton.mountpoint)
+        total = int(usage.total) * 1024  # Convert to KB
+        self.data = {
+            'partition_name': partiton.device.replace('/dev/', ''),
+            'path': partiton.mountpoint,
+            'total': total,
+            'volume': partiton.device,
+        }
 
 
 class NetDeviceRegisterSender(BaseMultiObjectSender):
@@ -129,6 +130,35 @@ cyan = _wrap_with('36')
 white = _wrap_with('37')
 
 
+def build_partition_list_for_registration():
+    str_bool_values = ('y', 'yes', 'true', 't', '1')
+
+    def str2bool(v):
+        return v.lower() in str_bool_values
+
+    partition_list = psutil.disk_partitions(all=True)
+
+    partition_list_to_register = []
+    for partition in partition_list:
+        result = raw_input(
+            'Register partition {0} [no]: '.format(partition.mountpoint, ', '.join(str_bool_values))) or 'n'
+        if str2bool(result):
+            partition_list_to_register.append(partition)
+
+    return partition_list_to_register
+
+
+def _write_error(data):
+    import tempfile
+
+    error_lof_filename = os.path.join(tempfile.gettempdir(), 'simo_install_error.log')
+    with file(error_lof_filename, mode='w') as f:
+        f.write(data)
+    print(data)
+
+    print(red('Error log: {0}'.format(error_lof_filename)))
+
+
 def main():
     parser = argparse.ArgumentParser(description='SIMO Collector installer.')
     parser.add_argument('path', default=CONFIG_FILE_DEFAULT_PATH, type=str, nargs='?',
@@ -154,12 +184,14 @@ def main():
 
     print('\n\n')
 
+    response_data = {}
     try:
         sender = ServerInfoSender(config, ip_address, hostname)
         response = sender.send()
         response_data = json.loads(response)
     except urllib2.HTTPError, e:
-        print(e.fp.read())
+        error_log = e.fp.read()
+        _write_error(error_log)
         exit(1)
 
     if 'url' not in response_data:
@@ -167,46 +199,55 @@ def main():
         print(response_data)
         exit(1)
 
-    default_config['server_id'] = response_data['url']
-    default_config['server'] = server
-    default_config['username'] = username
-    default_config['password'] = password
+    config['server_id'] = response_data['url']
+    config['server'] = server
+    config['username'] = username
+    config['password'] = password
 
     config_path = args.path
-
     if not os.path.exists(os.path.dirname(config_path)):
         os.makedirs(os.path.dirname(config_path))
 
-    try:
-        response = DiskRegisterSender(default_config).send()
-    except urllib2.HTTPError, e:
-        print(red('Problem in disk registration process'))
-        print(e.fp.read())
-        exit(1)
+    response_list = []
+    partition_list_for_registration = build_partition_list_for_registration()
+    for partition in partition_list_for_registration:
+        try:
+            r_sender = DiskRegisterSender(config)
+            r_sender.set_partition(partition)
+            response_list.append(r_sender.send())
+        except urllib2.HTTPError, e:
+            print(red('Problem in disk registration process'))
+            error_log = e.fp.read()
+            _write_error(error_log)
+            exit(1)
 
-    default_config['disk'] = {}
-    for data in response:
+    config['disk'] = {}
+    config['path_list'] = []
+    for data in response_list:
         disk = json.loads(data)
         partition_name = disk['partition_name']
         print('{0}: {1}'.format(green('Disk partition has been registred'), partition_name))
-        default_config['disk'][partition_name] = disk['url']
+        config['disk'][partition_name] = disk['url']
+        config['path_list'].append(disk['path'])
 
+    response = {}
     try:
-        response = NetDeviceRegisterSender(default_config).send()
+        response = NetDeviceRegisterSender(config).send()
     except urllib2.HTTPError, e:
         print(red('Problem in disk registration process'))
-        print(e.fp.read())
+        error_log = e.fp.read()
+        _write_error(error_log)
         exit(1)
 
-    default_config['networkdevices'] = {}
+    config['networkdevices'] = {}
     for data in response:
         device_data = json.loads(data)
         device_name = device_data['name']
         print('{0}: {1}'.format(green('Network device has been registred'), device_name))
-        default_config['networkdevices'][device_name] = device_data['url']
+        config['networkdevices'][device_name] = device_data['url']
 
     with open(config_path, 'w') as f:
-        f.write(json.dumps(default_config, indent=4, sort_keys=True))
+        f.write(json.dumps(config, indent=4, sort_keys=True))
 
     print('{0}: {1}'.format(green('Creating configuration on path'), config_path))
 
@@ -214,27 +255,6 @@ def main():
     create_cron_jobs()
 
     print('\n\n{0}'.format(green('Successfully installed SIMO Collector')))
-
-
-def mmain():
-    conf = '/home/rbas/simocollector.conf'
-    with open(conf, 'r') as f:
-        default_config = json.load(f)
-
-    try:
-        response = NetDeviceRegisterSender(default_config).send()
-    except urllib2.HTTPError, e:
-        print(e.fp.read())
-        exit(1)
-
-    default_config['networkdevices'] = {}
-    for data in response:
-        device_data = json.loads(data)
-        default_config['networkdevices'][device_data['name']] = device_data['url']
-
-    json_config = json.dumps(default_config, indent=4, sort_keys=True)
-    with open(conf, 'w') as f:
-        f.write(json_config)
 
 
 if __name__ == '__main__':

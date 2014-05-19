@@ -93,7 +93,13 @@ class SystemCollector(object):
         _columns = ('total', 'used', 'free')
         data = {}
 
-        partition_list = psutil.disk_partitions(all=False)
+        partition_list = psutil.disk_partitions(all=True)
+
+        def _sanitize(p):
+            if p is not "/":
+                return p.rstrip("/")
+            return p
+        path_list = map(_sanitize, path_list)
 
         for path in path_list:
             try:

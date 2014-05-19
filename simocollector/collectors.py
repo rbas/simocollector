@@ -96,7 +96,7 @@ class SystemCollector(object):
         partition_list = psutil.disk_partitions(all=True)
 
         def _sanitize(p):
-            if p is not "/":
+            if len(p) > 1:
                 return p.rstrip("/")
             return p
         path_list = map(_sanitize, path_list)

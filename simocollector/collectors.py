@@ -116,7 +116,7 @@ class SystemCollector(object):
                 row['path'] = part.mountpoint
                 row['percent'] = int(usage.percent)
 
-                data[part.device.replace('/dev/', '')] = row
+                data[part.device] = row
             except IndexError:
                 pass
 

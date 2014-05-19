@@ -52,9 +52,8 @@ class DiskRegisterSender(BaseObjectSender):
         return self.data
 
     def set_partition(self, partiton):
-        print(partiton)
         usage = psutil.disk_usage(partiton.mountpoint)
-        total = int(usage.total) * 1024  # Convert to KB
+        total = int(usage.total) / (1024 * 1024)  # Convert to MB
         self.data = {
             'partition_name': partiton.device.replace('/dev/', ''),
             'path': partiton.mountpoint,

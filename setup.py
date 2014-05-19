@@ -1,4 +1,7 @@
 import os
+import sys
+import shlex
+import subprocess
 
 try:
     from setuptools import setup, find_packages
@@ -7,13 +10,23 @@ except ImportError:
 
 base_path = os.path.dirname(__file__)
 
+version = __import__('simocollector').__versionstr__
+
+# release a version, publish to GitHub and PyPI
+if sys.argv[-1] == 'publish':
+    command = lambda cmd: subprocess.check_call(shlex.split(cmd))
+    command('git tag v' + version)
+    command('git push --tags origin master:master')
+    command('python setup.py sdist upload')
+    sys.exit()
+
 
 def read_file(filename):
     return open(os.path.join(base_path, filename)).read()
 
 setup(
     name='simocollector',
-    version='1.3.0',
+    version=version,
     packages=find_packages(),
     url='https://github.com/rbas/simocollector',
     license=read_file('LICENSE'),
